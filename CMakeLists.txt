@@ -15,7 +15,7 @@ set(CMAKE_BUILD_TYPE Debug)
 # Find Boost components
 # Asio coroutines often require Boost.Context if using stackful, 
 # but for C++20 awaitables, we just need System and Thread.
-find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Boost REQUIRED COMPONENTS system thread url)
 
 add_executable(boing main.cpp
                     annotations.cpp
@@ -31,6 +31,7 @@ target_link_libraries(boing
     PRIVATE 
     Boost::system 
     Boost::thread
+    Boost::url
     Threads::Threads
 )
 

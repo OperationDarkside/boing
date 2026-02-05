@@ -1,8 +1,10 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <print>
 
 #include <boost/beast/http.hpp>
+#include <boost/url.hpp>
 
 #include "context.cpp"
 
@@ -28,15 +30,37 @@ namespace boing
 
         void route(context &ctx)
         {
-            auto it = routes_.find({ctx.req.method(), std::string(ctx.req.target())});
-            if (it != routes_.end())
+            const auto url_view_res = boost::urls::parse_origin_form(ctx.req.target());
+            if (url_view_res.has_value())
             {
-                it->second(ctx);
+                const auto &url_view = url_view_res.value();
+                const auto path = url_view.encoded_path();
+                // std::println("path: {}", path);
+                if (url_view.has_query())
+                {
+                    const auto query = url_view.encoded_query();
+                    ctx.query_params = std::string(query);
+                    // std::println("query: {}", query);
+                }
+
+                auto it = routes_.find({ctx.req.method(), std::string(path)});
+                if (it != routes_.end())
+                {
+                    it->second(ctx); // Call endpoint
+                }
+                else
+                {
+                    std::println("Router: Route \"{}\" not found", std::string(ctx.req.target()));
+                    ctx.res.result(http::status::not_found);
+                    ctx.text("404 Not Found");
+                }
             }
             else
             {
-                ctx.res.result(http::status::not_found);
-                ctx.text("404 Not Found");
+                const auto ec = url_view_res.error();
+                std::println("Router: Route \"{}\" could not be parsed. Error: \"{}\"", std::string(ctx.req.target()), ec.what());
+                ctx.res.result(http::status::bad_request);
+                ctx.text("400 url could not be parsed");
             }
         }
     };

@@ -1,3 +1,5 @@
+#include <string>
+
 #include "session.cpp"
 #include "session_manager.cpp"
 
@@ -19,6 +21,7 @@ namespace boing
         const http::request<http::string_body> &req;
         http::response<http::string_body> &res;
         session *session_;
+        std::string query_params;
 
         void text(std::string body)
         {

@@ -1,6 +1,5 @@
 #include <string>
 #include <exception>
-#include <iostream>
 #include <meta>
 #include <print>
 
@@ -122,33 +121,22 @@ namespace boing
             }
         }
 
-        void start()
+        void start(const std::string_view address = "0.0.0.0", unsigned short port = 8080)
         {
-            // Define Routes like a Framework
-            app.add_route(http::verb::get, "/", [](context &ctx)
-                          { ctx.html("<h1>Welcome</h1><p>Check /stats to see session tracking.</p>"); });
-
-            app.add_route(http::verb::get, "/stats", [](context &ctx)
-                          {
-        std::string msg = "You have visited this site " + 
-                          std::to_string(ctx.session_->visit_count) + " times!";
-        ctx.text(msg); });
-
             try
             {
-                unsigned short port = 8080;
-                auto const address = net::ip::make_address("0.0.0.0");
+                auto const ip_address = net::ip::make_address(address);
                 net::io_context ioc{1};
 
                 // Pass the app logic into the listener
-                net::co_spawn(ioc, do_listen({address, port}, app, session_manager_), net::detached);
+                net::co_spawn(ioc, do_listen({ip_address, port}, app, session_manager_), net::detached);
 
-                std::cout << "Framework running on http://localhost:" << port << std::endl;
+                std::println("Boing webserver running on {}:{}", address, port);
                 ioc.run();
             }
             catch (std::exception const &e)
             {
-                std::cerr << "Error: " << e.what() << std::endl;
+                std::println("Error: {}", e.what());
             }
         }
 
@@ -190,7 +178,7 @@ namespace boing
                         current_session = sm.get_session(sid);
                         is_new_session = true;
                     }
-                    current_session->visit_count++;
+                    // current_session->visit_count++;
 
                     // 2. Prepare Response
                     http::response<http::string_body> res{http::status::ok, req.version()};
@@ -203,7 +191,7 @@ namespace boing
                     }
 
                     // 3. Dispatch to Router
-                    context ctx{req, res, current_session};
+                    context ctx{req, res, current_session, ""};
                     router_.route(ctx);
 
                     // 4. Finalize and Write
