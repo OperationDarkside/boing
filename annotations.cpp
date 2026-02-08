@@ -17,6 +17,9 @@ namespace boing
         }
     };
 
+    // Creates routing paths from the class and member-function names
+    struct auto_controller{};
+
     template <std::size_t N>
     struct GET
     {
@@ -40,5 +43,17 @@ namespace boing
                 path[i] = input[i];
         }
     };
+
+    template <std::size_t N>
+    struct rest_controller{
+        char path[N];
+
+        constexpr rest_controller(const char (&input)[N] = "")
+        {
+            for (std::size_t i = 0; i < N; ++i)
+                path[i] = input[i];
+        }
+    };
 }
+
 #endif

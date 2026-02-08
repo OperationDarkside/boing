@@ -1,0 +1,3 @@
+[submodule "extern/CppJsonMagic"]
+	path = extern/CppJsonMagic
+	url = https://github.com/OperationDarkside/CppJsonMagic.git

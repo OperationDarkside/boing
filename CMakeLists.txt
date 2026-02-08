@@ -17,6 +17,11 @@ set(CMAKE_BUILD_TYPE Debug)
 # but for C++20 awaitables, we just need System and Thread.
 find_package(Boost REQUIRED COMPONENTS system thread url)
 
+add_library(CppJsonMagic INTERFACE)
+target_include_directories(CppJsonMagic INTERFACE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/CppJsonMagic
+)
+
 add_executable(boing main.cpp
                     annotations.cpp
                     context.cpp
@@ -33,6 +38,7 @@ target_link_libraries(boing
     Boost::thread
     Boost::url
     Threads::Threads
+    CppJsonMagic
 )
 
 # Useful compiler warnings
