@@ -64,13 +64,13 @@ namespace boing
         constexpr static auto endpoint_types_indices = make_indices_array<endpoint_types.size()>();
 
         constexpr static auto tuple_instance_types = std::meta::substitute(
-                ^^std::tuple, endpoint_types);
-        typename [: tuple_instance_types :] m_instances{};
+            ^^std::tuple, endpoint_types);
+        typename[:tuple_instance_types:] m_instances{};
 
         /*
         struct enpoint_instances;
         consteval
-        {    
+        {
             constexpr auto tuple_instance_types = std::meta::substitute(
                 ^^std::tuple, endpoint_types);
             // typename [:tuple_instance_types:] tuple_instances{};
@@ -93,7 +93,11 @@ namespace boing
                 if constexpr (m_annotations.size() > 0)
                 {
                     constexpr static auto m_anno = m_annotations[0];
-                    constexpr static auto m_anno_type = std::meta::type_of(m_anno);
+                    constexpr static auto m_anno_type = std::meta::remove_cvref(std::meta::type_of(m_anno));
+
+                    constexpr static auto class_members = std::define_static_array(std::meta::members_of(m, ctx));
+                    constexpr static auto class_members_indices = make_indices_array<class_members.size()>();
+
                     if constexpr (std::meta::has_template_arguments(m_anno_type))
                     {
                         constexpr static auto ctrl_type = ^^controller<0>;
@@ -105,12 +109,10 @@ namespace boing
                             // CONTROLLER PATH
                             const auto ctrl_path = ctrl_obj.path;
                             // CONTROLLER INSTANCE
-                            //static typename[:m:] m_instance;
-                            //auto m_instance = std::get<i>(ei.types);
+                            // static typename[:m:] m_instance;
+                            // auto m_instance = std::get<i>(ei.types);
                             std::println("ctrl_path: {}", ctrl_path);
 
-                            constexpr static auto class_members = std::define_static_array(std::meta::members_of(m, ctx));
-                            constexpr static auto class_members_indices = make_indices_array<class_members.size()>();
                             template for (constexpr auto j : class_members_indices)
                             {
                                 // CLASS MEMBERS
@@ -168,6 +170,42 @@ namespace boing
                                                               { std::get<i>(m_instances).[:cm:](ctx); });
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        constexpr auto auto_ctrl_type = ^^auto_controller;
+
+                        if constexpr (m_anno_type == auto_ctrl_type)
+                        {
+                            // IS AUTO_CONTROLLER
+                            constexpr auto class_name = std::meta::identifier_of(m);
+
+                            template for (constexpr auto j : class_members_indices)
+                            {
+                                // CLASS MEMBERS
+                                constexpr auto cm = class_members[j];
+                                if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
+                                {
+                                    constexpr auto class_member_name = std::meta::identifier_of(cm);
+                                    std::string full_path = "/";
+                                    full_path += class_name;
+                                    full_path += "/";
+                                    full_path += class_member_name;
+
+                                    std::println("full_path: {}", full_path);
+
+                                    if constexpr (std::meta::is_static_member(cm))
+                                    {
+                                        app.add_route(http::verb::get, full_path, [:cm:]); // Should default to POST?
+                                    }
+                                    else
+                                    {
+                                        app.add_route(http::verb::get, full_path, [&](context &ctx)
+                                                      { std::get<i>(m_instances).[:cm:](ctx); });
                                     }
                                 }
                             }
