@@ -6,7 +6,6 @@ namespace endpoints
     using namespace boing;
     struct[[= controller("/")]] root
     {
-
         [[= GET("")]] static void greeting(context &ctx)
         {
             ctx.html("<h2>Welcome to Boing</h2><p>Try our <a href=\"/stats\">/stats</a> page</p>");
@@ -33,7 +32,7 @@ namespace endpoints
         {
             std::string msg = "<h3>Counter: " +
                               std::to_string(counter++) + "</h3>";
-            ctx.text(msg);
+            ctx.html(msg);
         }
 
         [[= GET("/olla")]] void olla(context &ctx)
@@ -44,7 +43,6 @@ namespace endpoints
 
     struct[[= auto_controller()]] api
     {
-
         static void rest(context &ctx)
         {
             ctx.text("Hello from the Rest API!");
