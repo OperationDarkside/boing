@@ -4,6 +4,7 @@
 #include <print>
 #include <tuple>
 #include <array>
+#include <ranges>
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -52,12 +53,11 @@ namespace boing
             template for (constexpr auto i : ns_members_indices)
             {
                 constexpr static auto m = ns_members[i];
-                if constexpr (std::meta::is_type(m) && std::meta::is_class_type(m) /*&& std::meta::is_trivially_default_constructible_type(m)*/)
+                if constexpr (std::meta::is_type(m) && std::meta::is_complete_type(m) && std::meta::is_class_type(m) && std::meta::is_default_constructible_type(m))
                 {
                     tuple_members.push_back(m);
                 }
             }
-            // std::meta::define_aggregate(^^enpoint_instances, tuple_members);
             return std::define_static_array(tuple_members);
         }
         constexpr static auto endpoint_types = get_endpoint_types();
@@ -66,19 +66,6 @@ namespace boing
         constexpr static auto tuple_instance_types = std::meta::substitute(
             ^^std::tuple, endpoint_types);
         typename[:tuple_instance_types:] m_instances{};
-
-        /*
-        struct enpoint_instances;
-        consteval
-        {
-            constexpr auto tuple_instance_types = std::meta::substitute(
-                ^^std::tuple, endpoint_types);
-            // typename [:tuple_instance_types:] tuple_instances{};
-            std::meta::define_aggregate(^^enpoint_instances, {
-                                                                 std::meta::data_member_spec(tuple_instance_types, {.name = "types"})});
-        }
-        static enpoint_instances ei{};
-        */
 
     public:
         webserver()
@@ -101,6 +88,7 @@ namespace boing
                     if constexpr (std::meta::has_template_arguments(m_anno_type))
                     {
                         constexpr static auto ctrl_type = ^^controller<0>;
+                        constexpr static auto rest_ctrl_type = ^^rest_controller<0>;
                         if constexpr (std::meta::template_of(m_anno_type) == std::meta::template_of(ctrl_type))
                         {
                             // MEMBERS WITH CONTROLLER ANNOTATION
@@ -108,22 +96,20 @@ namespace boing
                             constexpr auto ctrl_obj = std::meta::extract<ctrl_anno_type>(m_anno);
                             // CONTROLLER PATH
                             const auto ctrl_path = ctrl_obj.path;
-                            // CONTROLLER INSTANCE
-                            // static typename[:m:] m_instance;
-                            // auto m_instance = std::get<i>(ei.types);
+
                             std::println("ctrl_path: {}", ctrl_path);
 
                             template for (constexpr auto j : class_members_indices)
                             {
                                 // CLASS MEMBERS
                                 constexpr auto cm = class_members[j];
-                                if constexpr (std::meta::is_function(cm))
+                                if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
                                 {
                                     constexpr auto cm_annotations = std::define_static_array(std::meta::annotations_of(cm));
                                     if constexpr (cm_annotations.size() > 0)
                                     {
                                         constexpr static auto fn_anno = cm_annotations[0];
-                                        constexpr static auto fn_anno_type = std::meta::type_of(fn_anno);
+                                        constexpr static auto fn_anno_type = std::meta::remove_cvref(std::meta::type_of(fn_anno));
                                         constexpr static auto get_type = ^^GET<0>;
                                         constexpr static auto post_type = ^^POST<0>;
                                         if constexpr (std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type))
@@ -170,6 +156,132 @@ namespace boing
                                                               { std::get<i>(m_instances).[:cm:](ctx); });
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                        else if constexpr (std::meta::template_of(m_anno_type) == std::meta::template_of(rest_ctrl_type))
+                        {
+                            // MEMBERS WITH CONTROLLER ANNOTATION
+                            using rest_ctrl_anno_type = [:m_anno_type:];
+                            constexpr auto rest_ctrl_obj = std::meta::extract<rest_ctrl_anno_type>(m_anno);
+                            // REST CONTROLLER PATH
+                            const auto rest_ctrl_path = rest_ctrl_obj.path;
+
+                            std::println("rest_ctrl_path: {}", rest_ctrl_path);
+
+                            template for (constexpr auto j : class_members_indices)
+                            {
+                                // CLASS MEMBERS
+                                constexpr auto cm = class_members[j];
+                                if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
+                                {
+                                    constexpr auto cm_annotations = std::define_static_array(std::meta::annotations_of(cm));
+                                    if constexpr (cm_annotations.size() > 0)
+                                    {
+                                        constexpr static auto fn_anno = cm_annotations[0];
+                                        constexpr static auto fn_anno_type = std::meta::remove_cvref(std::meta::type_of(fn_anno));
+                                        constexpr static auto get_type = ^^GET<0>;
+                                        // constexpr static auto post_type = ^^POST<0>;
+                                        if constexpr (std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type))
+                                        {
+                                            // GET annotation
+                                            using get_anno_type = [:fn_anno_type:];
+                                            constexpr auto get_obj = std::meta::extract<get_anno_type>(fn_anno);
+                                            const auto get_path = get_obj.path;
+
+                                            // RT
+                                            std::string full_path = rest_ctrl_path;
+                                            full_path += get_path;
+
+                                            std::println("full_path: {}", full_path);
+
+                                            // DECONSTRUCT MEMBER FUNCTION
+                                            constexpr auto ret_type = std::meta::return_type_of(cm);
+                                            constexpr auto ret_type_name = std::meta::display_string_of(ret_type);
+                                            std::println("ret_type_name: {}", ret_type_name);
+                                            constexpr static auto fn_parameters = std::define_static_array(parameters_of(cm));
+                                            constexpr static auto params_indices = make_indices_array<fn_parameters.size()>();
+
+                                            constexpr auto tuple_refl = std::meta::substitute(
+                                                ^^std::tuple, fn_parameters | std::views::transform(std::meta::type_of));
+
+                                            /*
+                                            template for (constexpr auto ki : params_indices)
+                                            {
+                                                constexpr auto fp = fn_parameters[ki];
+                                                constexpr auto fp_name = std::meta::identifier_of(fp);
+                                                //constexpr auto fp_type = std::meta::type_of(fp);
+                                                //std::get<j>(args) = tt.[:test_type_members[j]:];
+                                            }
+                                                */
+
+                                            if constexpr (std::meta::is_static_member(cm))
+                                            {
+                                                // app.add_route(http::verb::get, full_path, [:cm:]);
+                                                app.add_route(http::verb::get, full_path, [&](context &ctx)
+                                                              {
+                                                                  /*
+                                                                  for(const auto& fp : fn_parameters) {
+
+                                                                  }
+                                                                  */
+                                                                  typename[:tuple_refl:] args{};
+                                                                  template for (constexpr auto ki : params_indices)
+                                                                  {
+                                                                      constexpr auto fp = fn_parameters[ki];
+                                                                      constexpr auto fp_name = std::meta::identifier_of(fp);
+                                                                      constexpr auto fp_type = std::meta::type_of(fp);
+                                                                      constexpr auto fp_type_cleaned = std::meta::remove_cvref(fp_type);
+
+                                                                      if (ctx.params.contains(fp_name))
+                                                                      {
+                                                                          auto it = *ctx.params.find(fp_name);
+                                                                          auto val = it.value;
+                                                                          if constexpr (fp_type_cleaned == ^^int)
+                                                                          {
+                                                                              // INTEGER
+                                                                              // std::get<j>(args) = tt.[:test_type_members[j]:];
+                                                                              std::get<ki>(args) = std::stoi(val);
+                                                                          }
+                                                                      }
+                                                                  }
+                                                                  auto [... params] = args;
+                                                                  //apple.[:m:](params...);
+                                                                  typename [:ret_type:] result = [:cm:](params...);
+                                                                  // std::get<i>(m_instances).[:cm:](ctx);
+                                                                  // TODO serialize "result" to json string
+                                                                  ctx.json(result);
+                                                              });
+                                            }
+                                            else
+                                            {
+                                                // app.add_route(http::verb::get, full_path, [&](context &ctx)
+                                                //{ std::get<i>(m_instances).[:cm:](ctx); });
+                                            }
+                                        }
+                                        // ignore POST for now. hard to test.
+                                        /*else if constexpr (std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type))
+                                        {
+                                            // POST ANNOTATION
+                                            using post_anno_type = [:fn_anno_type:];
+                                            constexpr auto post_obj = std::meta::extract<post_anno_type>(fn_anno);
+                                            const auto post_path = post_obj.path;
+
+                                            // RT
+                                            std::string full_path = rest_ctrl_path;
+                                            full_path += post_path;
+
+                                            if constexpr (std::meta::is_static_member(cm))
+                                            {
+                                                app.add_route(http::verb::post, full_path, [:cm:]);
+                                            }
+                                            else
+                                            {
+                                                //app.add_route(http::verb::post, full_path, [&](context &ctx)
+                                                  //            { std::get<i>(m_instances).[:cm:](ctx); });
+                                            }
+                                        }*/
                                     }
                                 }
                             }

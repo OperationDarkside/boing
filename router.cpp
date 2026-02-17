@@ -40,7 +40,16 @@ namespace boing
                 {
                     const auto query = url_view.encoded_query();
                     ctx.query_params = std::string(query);
-                    // std::println("query: {}", query);
+                    ctx.params = url_view.params();
+                    //auto a = *ctx.params.find("bla");
+                    //a.
+                    /*
+                    const auto params = url_view.params();
+                    for(const auto& p : params) {
+                        std::println("key: {} - value: {}", p.key, p.value);
+                    }
+                    std::println("query: {}", ctx.query_params);
+                    */
                 }
 
                 auto it = routes_.find({ctx.req.method(), std::string(path)});

@@ -1,5 +1,6 @@
 #include "webserver.cpp"
 #include "annotations.cpp"
+//#include "route_scanner.cpp"
 
 namespace endpoints
 {
@@ -52,6 +53,16 @@ namespace endpoints
         {
             ctx.text("bla bla bla bla");
         }
+    };
+
+    struct[[= rest_controller("/rest")]] rest_test
+    {
+        [[= GET("/test")]]
+        static std::string rest(int a, int b)
+        {
+            return std::to_string(a + b);
+        }
+
     };
 }
 
