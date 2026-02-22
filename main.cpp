@@ -57,6 +57,7 @@ namespace endpoints
 
     struct[[= rest_controller("/rest")]] rest_test
     {
+        // STATIC
         [[= GET("/test")]]
         static std::string rest(int a, int b)
         {
@@ -64,9 +65,18 @@ namespace endpoints
         }
 
         [[= GET("/pest")]]
-        static std::string rest(float a, std::string inter, int b)
+        static std::string pest(float a, std::string inter, int b)
         {
             return std::to_string(a) + inter + std::to_string(b);
+        }
+
+        // NON-STATIC
+        int visit_count = 0;
+        [[= GET("/fest")]]
+        std::string fest(float a, int b)
+        {
+            std::string result = "a + b + visits = ";
+            return std::to_string(a + b + visit_count++);
         }
 
     };
