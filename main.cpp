@@ -76,7 +76,7 @@ namespace endpoints
         std::string fest(float a, int b)
         {
             std::string result = "a + b + visits = ";
-            return std::to_string(a + b + visit_count++);
+            return result + std::to_string(a + b + visit_count++);
         }
 
     };
