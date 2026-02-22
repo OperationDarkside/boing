@@ -1,6 +1,7 @@
-#include <string>
 #ifndef BOING_SESSION
 #define BOING_SESSION
+
+#include <string>
 
 namespace boing
 {

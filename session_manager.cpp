@@ -1,10 +1,10 @@
+#ifndef BOING_SESSION_MANAGER
+#define BOING_SESSION_MANAGER
+
 #include <string>
 #include <unordered_map>
 
 #include "session.cpp"
-
-#ifndef BOING_SESSION_MANAGER
-#define BOING_SESSION_MANAGER
 
 namespace boing
 {

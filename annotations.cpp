@@ -1,7 +1,7 @@
-#include <string_view>
-
 #ifndef BOING_ANNOTATIONS
 #define BOING_ANNOTATIONS
+
+#include <cstddef>
 
 namespace boing
 {

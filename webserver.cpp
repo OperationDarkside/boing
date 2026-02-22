@@ -206,26 +206,10 @@ namespace boing
                                             constexpr auto tuple_refl = std::meta::substitute(
                                                 ^^std::tuple, fn_parameters | std::views::transform(std::meta::type_of));
 
-                                            /*
-                                            template for (constexpr auto ki : params_indices)
-                                            {
-                                                constexpr auto fp = fn_parameters[ki];
-                                                constexpr auto fp_name = std::meta::identifier_of(fp);
-                                                //constexpr auto fp_type = std::meta::type_of(fp);
-                                                //std::get<j>(args) = tt.[:test_type_members[j]:];
-                                            }
-                                                */
-
                                             if constexpr (std::meta::is_static_member(cm))
                                             {
-                                                // app.add_route(http::verb::get, full_path, [:cm:]);
                                                 app.add_route(http::verb::get, full_path, [&](context &ctx)
                                                               {
-                                                                  /*
-                                                                  for(const auto& fp : fn_parameters) {
-
-                                                                  }
-                                                                  */
                                                                   typename[:tuple_refl:] args{};
                                                                   template for (constexpr auto ki : params_indices)
                                                                   {
@@ -234,25 +218,51 @@ namespace boing
                                                                       constexpr auto fp_type = std::meta::type_of(fp);
                                                                       constexpr auto fp_type_cleaned = std::meta::remove_cvref(fp_type);
 
+                                                                      constexpr auto fp_type_name = std::define_static_string(std::meta::display_string_of(fp_type));
+                                                                      constexpr auto fp_type_cleaned_name = std::define_static_string(std::meta::display_string_of(fp_type_cleaned));
+                                                                      std::println("fp_type_name: {} - fp_type_cleaned_name: {}", fp_type_name, fp_type_cleaned_name);
+
                                                                       if (ctx.params.contains(fp_name))
                                                                       {
                                                                           auto it = *ctx.params.find(fp_name);
                                                                           auto val = it.value;
-                                                                          if constexpr (fp_type_cleaned == ^^int)
-                                                                          {
-                                                                              // INTEGER
-                                                                              // std::get<j>(args) = tt.[:test_type_members[j]:];
-                                                                              std::get<ki>(args) = std::stoi(val);
+
+                                                                          // 1. Strings & String Views
+                                                                          if constexpr (fp_type_cleaned == dealias(^^std::string)) {
+                                                                              std::get<ki>(args) = val;
+                                                                          }
+                                                                          else if constexpr (fp_type_cleaned == ^^std::string_view) {
+                                                                              std::get<ki>(args) = val;
+                                                                          }
+                                                                          // 2. Booleans
+                                                                          else if constexpr (fp_type_cleaned == ^^bool) {
+                                                                              std::string lower_val = to_lowercase(val); // Implement a quick to_lower
+                                                                              std::get<ki>(args) = (lower_val == "true" || lower_val == "1" || lower_val == "yes");
+                                                                          }
+                                                                          // 3. Floating points (use traits to catch float, double, long double)
+                                                                          else if constexpr (std::is_floating_point_v<typename [:fp_type_cleaned:]>) {
+                                                                              if constexpr (fp_type_cleaned == ^^float)
+                                                                                  std::get<ki>(args) = std::stof(val);
+                                                                              else 
+                                                                                  std::get<ki>(args) = std::stod(val); // double and others
+                                                                          }
+                                                                          // 4. Integers (catch int, long, uint64_t, size_t, etc.)
+                                                                          else if constexpr (std::is_integral_v<typename [:fp_type_cleaned:]>) {
+                                                                              if constexpr (std::is_signed_v<typename [:fp_type_cleaned:]>) {
+                                                                                  // signed integers
+                                                                                  std::get<ki>(args) = static_cast<typename [:fp_type_cleaned:]>(std::stoll(val));
+                                                                              } else {
+                                                                                  // unsigned integers
+                                                                                  std::get<ki>(args) = static_cast<typename [:fp_type_cleaned:]>(std::stoull(val));
+                                                                              }
                                                                           }
                                                                       }
                                                                   }
                                                                   auto [... params] = args;
-                                                                  //apple.[:m:](params...);
                                                                   typename [:ret_type:] result = [:cm:](params...);
                                                                   // std::get<i>(m_instances).[:cm:](ctx);
                                                                   // TODO serialize "result" to json string
-                                                                  ctx.json(result);
-                                                              });
+                                                                  ctx.json(result); });
                                             }
                                             else
                                             {

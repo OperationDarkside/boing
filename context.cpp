@@ -1,3 +1,6 @@
+#ifndef BOING_CONTEXT
+#define BOING_CONTEXT
+
 #include <string>
 
 #include "session.cpp"
@@ -5,9 +8,6 @@
 
 #include <boost/beast/http.hpp>
 #include <boost/url.hpp>
-
-#ifndef BOING_CONTEXT
-#define BOING_CONTEXT
 
 namespace boing
 {

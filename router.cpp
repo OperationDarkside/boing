@@ -1,3 +1,6 @@
+#ifndef BOING_ROUTER
+#define BOING_ROUTER
+
 #include <functional>
 #include <map>
 #include <string>
@@ -7,9 +10,6 @@
 #include <boost/url.hpp>
 
 #include "context.cpp"
-
-#ifndef BOING_ROUTER
-#define BOING_ROUTER
 
 namespace boing
 {

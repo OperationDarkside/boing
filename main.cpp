@@ -63,6 +63,12 @@ namespace endpoints
             return std::to_string(a + b);
         }
 
+        [[= GET("/pest")]]
+        static std::string rest(float a, std::string inter, int b)
+        {
+            return std::to_string(a) + inter + std::to_string(b);
+        }
+
     };
 }
 
