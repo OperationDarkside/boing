@@ -1,3 +1,5 @@
+#include <optional>
+
 #include "webserver.cpp"
 #include "annotations.cpp"
 //#include "route_scanner.cpp"
@@ -68,6 +70,18 @@ namespace endpoints
         static std::string pest(float a, std::string inter, int b)
         {
             return std::to_string(a) + inter + std::to_string(b);
+        }
+
+        [[= GET("/hest")]]
+        static std::string pest(float a, std::optional<std::string> inter, int b)
+        {
+            auto result = std::to_string(a);
+            if(inter) {
+                result += inter.value();
+            }
+            result += std::to_string(b);
+
+            return result;
         }
 
         // NON-STATIC

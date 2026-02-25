@@ -6,6 +6,7 @@
 #include <array>
 #include <ranges>
 #include <algorithm>
+#include <optional>
 
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -210,7 +211,7 @@ namespace boing
                                                 ^^std::tuple, fn_parameters | std::views::transform(std::meta::type_of));
 
                                             app.add_route(http::verb::get, full_path, [&](context &ctx)
-                                                {
+                                                          {
                                                     typename[:tuple_refl:] args{};
                                                     template for (constexpr auto ki : params_indices)
                                                     {
@@ -228,50 +229,29 @@ namespace boing
                                                             auto it = *ctx.params.find(fp_name);
                                                             auto val = it.value;
 
-                                                            // 1. Strings & String Views
-                                                            if constexpr (fp_type_cleaned == std::meta::dealias(^^std::string)) {
-                                                                std::get<ki>(args) = val;
+                                                            if constexpr(has_template_arguments(fp_type_cleaned) && template_of(fp_type_cleaned) == template_of(^^std::optional<int>)) {
+                                                                constexpr static auto opt_type = template_arguments_of(fp_type_cleaned)[0];
+                                                                typename [:fp_type_cleaned:] opt_val = deserialize_get_param<opt_type>(val);
+                                                                std::get<ki>(args) = opt_val;
+                                                            } else {
+                                                                std::get<ki>(args) = deserialize_get_param<fp_type_cleaned>(val);
                                                             }
-                                                            else if constexpr (fp_type_cleaned == std::meta::dealias(^^std::string_view)) {
-                                                                std::get<ki>(args) = val;
-                                                            }
-                                                            // 2. Booleans
-                                                            else if constexpr (fp_type_cleaned == ^^bool) {
-                                                                std::string lower_val = boost::algorithm::to_lower_copy(val); // Implement a quick to_lower
-                                                                std::get<ki>(args) = (lower_val == "true" || lower_val == "1" || lower_val == "yes");
-                                                            }
-                                                            // 3. Floating points (use traits to catch float, double, long double)
-                                                            else if constexpr (std::is_floating_point_v<typename [:fp_type_cleaned:]>) {
-                                                                if constexpr (fp_type_cleaned == ^^float)
-                                                                    std::get<ki>(args) = std::stof(val);
-                                                                else 
-                                                                    std::get<ki>(args) = std::stod(val); // double and others
-                                                            }
-                                                            // 4. Integers (catch int, long, uint64_t, size_t, etc.)
-                                                            else if constexpr (std::is_integral_v<typename [:fp_type_cleaned:]>) {
-                                                                if constexpr (std::is_signed_v<typename [:fp_type_cleaned:]>) {
-                                                                    // signed integers
-                                                                    std::get<ki>(args) = static_cast<typename [:fp_type_cleaned:]>(std::stoll(val));
-                                                                } else {
-                                                                    // unsigned integers
-                                                                    std::get<ki>(args) = static_cast<typename [:fp_type_cleaned:]>(std::stoull(val));
-                                                                }
-                                                            }
+                                                        } else {
+                                                            std::get<ki>(args) = {};
                                                         }
                                                     }
                                                     auto [... params] = args;
                                                     typename [:ret_type:] result;
+
                                                     if constexpr (std::meta::is_static_member(cm)) {
                                                         result = [:cm:](params...);
                                                     } else {
                                                         result = std::get<i>(m_instances).[:cm:](params...);
                                                     }
-                                                    // std::get<i>(m_instances).[:cm:](ctx);
-                                                    
+
                                                     std::string str_json = json_magic::serialize_value(result);
 
-                                                    ctx.json(str_json);
-                                                });
+                                                    ctx.json(str_json); });
                                         }
                                         // ignore POST for now. hard to test.
                                         /*else if constexpr (std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type))
@@ -360,6 +340,46 @@ namespace boing
         }
 
     private:
+        template <std::meta::info fp_type_cleaned>
+        auto deserialize_get_param(const std::string& param_val)
+        {
+            // 1. Strings & String Views
+            if constexpr (fp_type_cleaned == std::meta::dealias(^^std::string) || fp_type_cleaned == std::meta::dealias(^^std::string_view))
+            {
+                return param_val;
+            }
+            // 2. Booleans
+            else if constexpr (fp_type_cleaned == ^^bool)
+            {
+                std::string lower_val = boost::algorithm::to_lower_copy(param_val); // Implement a quick to_lower
+                return (lower_val == "true" || lower_val == "1" || lower_val == "yes");
+            }
+            // 3. Floating points (use traits to catch float, double, long double)
+            else if constexpr (std::is_floating_point_v<typename[:fp_type_cleaned:]>)
+            {
+                if constexpr (fp_type_cleaned == ^^float)
+                    return std::stof(param_val);
+                else
+                    return std::stod(param_val); // double and others
+            }
+            // 4. Integers (catch int, long, uint64_t, size_t, etc.)
+            else if constexpr (std::is_integral_v<typename[:fp_type_cleaned:]>)
+            {
+                if constexpr (std::is_signed_v<typename[:fp_type_cleaned:]>)
+                {
+                    // signed integers
+                    return static_cast<typename[:fp_type_cleaned:]>(std::stoll(param_val));
+                }
+                else
+                {
+                    // unsigned integers
+                    return static_cast<typename[:fp_type_cleaned:]>(std::stoull(param_val));
+                }
+            } else {
+                static_assert(false, "unknown type");
+            }
+        }
+
         // --- SESSION HANDLING HELPERS ---
         std::string get_session_id_from_cookie(const http::request<http::string_body> &req)
         {
