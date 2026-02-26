@@ -186,8 +186,10 @@ namespace boing
                                         constexpr static auto fn_anno = cm_annotations[0];
                                         constexpr static auto fn_anno_type = std::meta::remove_cvref(std::meta::type_of(fn_anno));
                                         constexpr static auto get_type = ^^GET<0>;
-                                        // constexpr static auto post_type = ^^POST<0>;
-                                        if constexpr (std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type))
+                                        constexpr static auto post_type = ^^POST<0>;
+                                        constexpr static bool is_get = std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type);
+                                        constexpr static bool is_post = std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type);
+                                        if constexpr (is_get || is_post)
                                         {
                                             // GET annotation
                                             using get_anno_type = [:fn_anno_type:];
@@ -210,7 +212,14 @@ namespace boing
                                             constexpr auto tuple_refl = std::meta::substitute(
                                                 ^^std::tuple, fn_parameters | std::views::transform(std::meta::type_of));
 
-                                            app.add_route(http::verb::get, full_path, [&](context &ctx)
+                                            http::verb v;
+                                            if constexpr(is_get) {
+                                                v = http::verb::get;
+                                            } else {
+                                                v = http::verb::post;
+                                            }
+
+                                            app.add_route(v, full_path, [&](context &ctx)
                                                           {
                                                     typename[:tuple_refl:] args{};
                                                     template for (constexpr auto ki : params_indices)
@@ -220,24 +229,40 @@ namespace boing
                                                         constexpr auto fp_type = std::meta::type_of(fp);
                                                         constexpr auto fp_type_cleaned = std::meta::remove_cvref(fp_type);
 
-                                                        //constexpr auto fp_type_name = std::define_static_string(std::meta::display_string_of(fp_type));
-                                                        //constexpr auto fp_type_cleaned_name = std::define_static_string(std::meta::display_string_of(fp_type_cleaned));
+                                                        constexpr static auto fp_type_name = std::define_static_string(std::meta::display_string_of(fp_type));
+                                                        constexpr auto fp_type_cleaned_name = std::define_static_string(std::meta::display_string_of(fp_type_cleaned));
                                                         //std::println("fp_type_name: {} - fp_type_cleaned_name: {}", fp_type_name, fp_type_cleaned_name);
 
-                                                        if (ctx.params.contains(fp_name))
-                                                        {
-                                                            auto it = *ctx.params.find(fp_name);
-                                                            auto val = it.value;
+                                                        constexpr static bool has_templ_args = has_template_arguments(fp_type_cleaned);
+                                                        constexpr static bool is_post_body = has_templ_args && template_of(fp_type_cleaned) == template_of(^^boing::POST_BODY<int>);
+                                                        //std::println("is_post_body: {}", is_post_body);
 
-                                                            if constexpr(has_template_arguments(fp_type_cleaned) && template_of(fp_type_cleaned) == template_of(^^std::optional<int>)) {
-                                                                constexpr static auto opt_type = template_arguments_of(fp_type_cleaned)[0];
-                                                                typename [:fp_type_cleaned:] opt_val = deserialize_get_param<opt_type>(val);
-                                                                std::get<ki>(args) = opt_val;
-                                                            } else {
-                                                                std::get<ki>(args) = deserialize_get_param<fp_type_cleaned>(val);
-                                                            }
+                                                        if constexpr (is_post_body) {
+                                                            // ChatGPT 5.2
+                                                            constexpr static auto body_type = template_arguments_of(fp_type_cleaned)[0];
+                                                            typename [:body_type:] obj{};
+                                                            json_magic::deserialize_value(obj, ctx.req.body());
+
+                                                            typename [:fp_type_cleaned:] wrapped{ std::move(obj) };
+                                                            std::get<ki>(args) = std::move(wrapped);
                                                         } else {
-                                                            std::get<ki>(args) = {};
+                                                            if (ctx.params.contains(fp_name))
+                                                            {
+                                                                auto it = *ctx.params.find(fp_name);
+                                                                auto val = it.value;
+
+                                                                constexpr static bool is_optional = has_templ_args && template_of(fp_type_cleaned) == template_of(^^std::optional<int>);
+                                                                //std::println("is_optional: {}", is_optional);
+                                                                if constexpr(is_optional) {
+                                                                    constexpr static auto opt_type = template_arguments_of(fp_type_cleaned)[0];
+                                                                    typename [:fp_type_cleaned:] opt_val = deserialize_get_param<opt_type>(val);
+                                                                    std::get<ki>(args) = opt_val;
+                                                                } else {
+                                                                    std::get<ki>(args) = deserialize_get_param<fp_type_cleaned>(val);
+                                                                }
+                                                            } else {
+                                                                std::get<ki>(args) = {};
+                                                            }
                                                         }
                                                     }
                                                     auto [... params] = args;
@@ -253,28 +278,6 @@ namespace boing
 
                                                     ctx.json(str_json); });
                                         }
-                                        // ignore POST for now. hard to test.
-                                        /*else if constexpr (std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type))
-                                        {
-                                            // POST ANNOTATION
-                                            using post_anno_type = [:fn_anno_type:];
-                                            constexpr auto post_obj = std::meta::extract<post_anno_type>(fn_anno);
-                                            const auto post_path = post_obj.path;
-
-                                            // RT
-                                            std::string full_path = rest_ctrl_path;
-                                            full_path += post_path;
-
-                                            if constexpr (std::meta::is_static_member(cm))
-                                            {
-                                                app.add_route(http::verb::post, full_path, [:cm:]);
-                                            }
-                                            else
-                                            {
-                                                //app.add_route(http::verb::post, full_path, [&](context &ctx)
-                                                  //            { std::get<i>(m_instances).[:cm:](ctx); });
-                                            }
-                                        }*/
                                     }
                                 }
                             }
@@ -341,7 +344,7 @@ namespace boing
 
     private:
         template <std::meta::info fp_type_cleaned>
-        auto deserialize_get_param(const std::string& param_val)
+        auto deserialize_get_param(const std::string &param_val)
         {
             // 1. Strings & String Views
             if constexpr (fp_type_cleaned == std::meta::dealias(^^std::string) || fp_type_cleaned == std::meta::dealias(^^std::string_view))
@@ -375,7 +378,9 @@ namespace boing
                     // unsigned integers
                     return static_cast<typename[:fp_type_cleaned:]>(std::stoull(param_val));
                 }
-            } else {
+            }
+            else
+            {
                 static_assert(false, "unknown type");
             }
         }

@@ -55,6 +55,11 @@ namespace boing
                 path[i] = input[i];
         }
     };
+
+    template<typename T>
+    struct POST_BODY {
+        T value;
+    };
 }
 
 #endif

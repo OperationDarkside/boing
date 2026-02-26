@@ -4,6 +4,10 @@
 #include "annotations.cpp"
 //#include "route_scanner.cpp"
 
+struct User {
+    std::string username;
+};
+
 namespace endpoints
 {
     using namespace boing;
@@ -91,6 +95,18 @@ namespace endpoints
         {
             std::string result = "a + b + visits = ";
             return result + std::to_string(a + b + visit_count++);
+        }
+
+        [[= POST("/post_test")]]
+        std::string fest(float a, int b, boing::POST_BODY<User> body)
+        {
+            std::string result = "username ";
+            result += body.value.username;
+            result += " visited ";
+            result += std::to_string(visit_count++);
+            result += " times.<br>Oh and the result is ";
+            result += std::to_string(a + b);
+            return result;
         }
 
     };
