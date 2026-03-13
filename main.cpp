@@ -11,6 +11,9 @@ struct User {
 namespace endpoints
 {
     using namespace boing;
+
+    struct dont_use_me{};
+
     struct[[= controller("/")]] root
     {
         [[= GET("")]] static void greeting(context &ctx)
