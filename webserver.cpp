@@ -36,6 +36,7 @@ namespace boing
     {
         router app;
         session_manager session_manager_;
+        std::vector<std::string> all_endpoint_paths{};
 
         template <std::size_t N>
         consteval static std::array<std::size_t, N> make_indices_array()
@@ -132,6 +133,7 @@ namespace boing
                                             // RT
                                             std::string full_path = ctrl_path;
                                             full_path += anno_path;
+                                            all_endpoint_paths.emplace_back(full_path);
 
                                             if constexpr (is_debug)
                                             {
@@ -205,6 +207,7 @@ namespace boing
                                         // RT
                                         std::string full_path = rest_ctrl_path;
                                         full_path += get_path;
+                                        all_endpoint_paths.emplace_back(full_path);
 
                                         if constexpr (is_debug)
                                         {
@@ -328,6 +331,7 @@ namespace boing
                                     full_path += class_name;
                                     full_path += "/";
                                     full_path += class_member_name;
+                                    all_endpoint_paths.emplace_back(full_path);
 
                                     if constexpr (is_debug)
                                     {
@@ -352,6 +356,18 @@ namespace boing
                     }
                 }
             }
+
+            std::string result{};
+            for(const auto& e : all_endpoint_paths) {
+                result += "<a href=\"";
+                result += e;
+                result += "\">";
+                result += e;
+                result += "</a><br>";
+            }
+            app.add_route(http::verb::get, "/endpoints", [result](context &ctx) { 
+                ctx.html(result);
+            });
         }
 
         void start(const std::string_view address = "0.0.0.0", unsigned short port = 8080)
