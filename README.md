@@ -13,7 +13,10 @@ Enable web development that feels like java's spring web.
 
 ### How to setup
 
-You need at least a working version of g++ (GCC) 16.0.1 20260313 (experimental). Look at the cmake file for more info.
+1. git clone with submodules (requires CppJsonMagic)
+2. You need at least a working version of g++ (GCC) 16.0.1 20260313 (experimental). Look at the cmake file for more info.
+3. apt install boost (needs system, thread, url)
+4. #include "webserver.cpp"
 
 ### How to start:
 
