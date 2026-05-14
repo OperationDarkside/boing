@@ -56,9 +56,11 @@ namespace boing
         }
     };
 
+    struct rest_auto_controller{};
+
     template<typename T>
     struct POST_BODY {
-        T value;
+        T value{};
     };
 }
 

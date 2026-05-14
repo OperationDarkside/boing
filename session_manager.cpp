@@ -13,7 +13,7 @@ namespace boing
      */
     class session_manager
     {
-        std::unordered_map<std::string, session> sessions_;
+        std::unordered_map<std::string, session> sessions_{};
 
     public:
         std::string create_session()

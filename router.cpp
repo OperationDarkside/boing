@@ -20,7 +20,7 @@ namespace boing
     class router
     {
         using handler = std::function<void(context &)>;
-        std::map<std::pair<http::verb, std::string>, handler> routes_;
+        std::map<std::pair<http::verb, std::string>, handler> routes_{};
 
     public:
         void add_route(http::verb method, std::string path, handler handler_)

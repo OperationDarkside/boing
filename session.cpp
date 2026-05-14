@@ -11,8 +11,8 @@ namespace boing
      */
     struct session
     {
-        std::string user_id;
-        int visit_count = 0;
+        std::string user_id{};
+        int visit_count{};
     };
 
 }

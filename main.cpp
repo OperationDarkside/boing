@@ -2,9 +2,10 @@
 
 #include "webserver.cpp"
 #include "annotations.cpp"
-//#include "route_scanner.cpp"
+// #include "route_scanner.cpp"
 
-struct User {
+struct User
+{
     std::string username;
 };
 
@@ -12,7 +13,9 @@ namespace endpoints
 {
     using namespace boing;
 
-    struct dont_use_me{};
+    struct dont_use_me
+    {
+    };
 
     struct[[= controller("/")]] root
     {
@@ -67,23 +70,21 @@ namespace endpoints
     struct[[= rest_controller("/rest")]] rest_test
     {
         // STATIC
-        [[= GET("/test")]]
-        static std::string rest(int a, int b)
+        [[= GET("/test")]] static std::string rest(int a, int b)
         {
             return std::to_string(a + b);
         }
 
-        [[= GET("/pest")]]
-        static std::string pest(float a, std::string inter, int b)
+        [[= GET("/pest")]] static std::string pest(float a, std::string inter, int b)
         {
             return std::to_string(a) + inter + std::to_string(b);
         }
 
-        [[= GET("/hest")]]
-        static std::string pest(float a, std::optional<std::string> inter, int b)
+        [[= GET("/hest")]] static std::string pest(float a, std::optional<std::string> inter, int b)
         {
             auto result = std::to_string(a);
-            if(inter) {
+            if (inter)
+            {
                 result += inter.value();
             }
             result += std::to_string(b);
@@ -93,15 +94,13 @@ namespace endpoints
 
         // NON-STATIC
         int visit_count = 0;
-        [[= GET("/fest")]]
-        std::string fest(float a, int b)
+        [[= GET("/fest")]] std::string fest(float a, int b)
         {
             std::string result = "a + b + visits = ";
             return result + std::to_string(a + b + visit_count++);
         }
 
-        [[= POST("/post_test")]]
-        std::string fest(float a, int b, boing::POST_BODY<User> body)
+        [[= POST("/post_test")]] std::string fest(float a, int b, boing::POST_BODY<User> body)
         {
             std::string result = "username ";
             result += body.value.username;
@@ -111,7 +110,17 @@ namespace endpoints
             result += std::to_string(a + b);
             return result;
         }
+    };
 
+    struct[[= rest_auto_controller()]] auto_rest_test
+    {
+        int visit_count = 0;
+
+        std::string add_visit(float a, int b)
+        {
+            std::string result = "a + b + visits = ";
+            return result + std::to_string(a + b + visit_count++);
+        }
     };
 }
 
