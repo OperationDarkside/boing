@@ -17,6 +17,8 @@
 #include <boost/beast/version.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include "session.cpp"
+#include "session_manager.cpp"
 #include "router.cpp"
 #include "annotations.cpp"
 #include "extern/CppJsonMagic/json_magic.cpp"
@@ -31,11 +33,11 @@ namespace boing
     namespace http = beast::http;
     using tcp = net::ip::tcp;
 
-    template <std::meta::info inf>
+    template <std::meta::info inf, is_session session>
     class webserver
     {
-        router app{};
-        session_manager session_manager_{};
+        router<session> app{};
+        session_manager<session> session_manager_{};
         std::vector<std::string> all_endpoint_paths{};
 
         template <std::size_t N>
@@ -158,7 +160,7 @@ namespace boing
                                             {
                                                 auto &inst = std::get<i>(m_instances);
                                                 constexpr static auto mf = &[:cm:];
-                                                auto func = [&inst, mf](context &ctx)
+                                                auto func = [&inst, mf](context<session> &ctx)
                                                 { (inst.*mf)(ctx); };
                                                 app.add_route(method, full_path, func);
                                             }
@@ -240,7 +242,7 @@ namespace boing
                                         auto &inst = std::get<i>(m_instances);
                                         constexpr static auto mf = &[:cm:];
 
-                                        app.add_route(v, full_path, [this, &inst, mf](context &ctx)
+                                        app.add_route(v, full_path, [this, &inst, mf](context<session> &ctx)
                                                       {
                                             typename[:tuple_refl:] args{};
                                             
@@ -347,7 +349,7 @@ namespace boing
                                     {
                                         auto &inst = std::get<i>(m_instances);
                                         constexpr static auto mf = &[:cm:];
-                                        auto func = [&inst, mf](context &ctx)
+                                        auto func = [&inst, mf](context<session> &ctx)
                                         { (inst.*mf)(ctx); };
                                         app.add_route(http::verb::get, full_path, func);
                                     }
@@ -403,7 +405,7 @@ namespace boing
                                     auto &inst = std::get<i>(m_instances);
                                     constexpr static auto mf = &[:cm:];
 
-                                    app.add_route(v, full_path, [this, &inst, mf](context &ctx)
+                                    app.add_route(v, full_path, [this, &inst, mf](context<session> &ctx)
                                                   {
                                             typename[:tuple_refl:] args{};
                                             
@@ -486,7 +488,7 @@ namespace boing
                 result += e;
                 result += "</a><br>";
             }
-            app.add_route(http::verb::get, "/endpoints", [result](context &ctx)
+            app.add_route(http::verb::get, "/endpoints", [result](context<session> &ctx)
                           { ctx.html(result); });
         }
 
@@ -568,7 +570,7 @@ namespace boing
         }
 
         // --- SESSION LOGIC ---
-        net::awaitable<void> do_session(tcp::socket socket, router &router_, session_manager &sm)
+        net::awaitable<void> do_session(tcp::socket socket, router<session> &router_, session_manager<session> &sm)
         {
             beast::flat_buffer buffer;
             try
@@ -602,7 +604,7 @@ namespace boing
                     }
 
                     // 3. Dispatch to Router
-                    context ctx{req, res, current_session, "", {}};
+                    context<session> ctx{req, res, current_session, "", {}};
                     router_.route(ctx);
 
                     // 4. Finalize and Write
@@ -615,14 +617,14 @@ namespace boing
             }
             catch (std::exception const &e)
             {
-                // Log error
+                std::print("{}", e.what());
             }
             beast::error_code ec;
             socket.shutdown(tcp::socket::shutdown_send, ec);
         }
 
         // --- LISTENER ---
-        net::awaitable<void> do_listen(tcp::endpoint endpoint, router &router_, session_manager &sm)
+        net::awaitable<void> do_listen(tcp::endpoint endpoint, router<session> &router_, session_manager<session> &sm)
         {
             auto executor = co_await net::this_coro::executor;
             tcp::acceptor acceptor(executor, endpoint);

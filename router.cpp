@@ -17,9 +17,10 @@ namespace boing
     /**
      * Router: Maps HTTP Methods + Paths to specific Handler functions.
      */
+    template <is_session session>
     class router
     {
-        using handler = std::function<void(context &)>;
+        using handler = std::function<void(context<session> &)>;
         std::map<std::pair<http::verb, std::string>, handler> routes_{};
 
     public:
@@ -28,7 +29,7 @@ namespace boing
             routes_[{method, path}] = std::move(handler_);
         }
 
-        void route(context &ctx)
+        void route(context<session> &ctx)
         {
             const auto url_view_res = boost::urls::parse_origin_form(ctx.req.target());
             if (url_view_res.has_value())

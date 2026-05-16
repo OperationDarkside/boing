@@ -4,7 +4,6 @@
 #include <string>
 
 #include "session.cpp"
-#include "session_manager.cpp"
 
 #include <boost/beast/http.hpp>
 #include <boost/url.hpp>
@@ -17,11 +16,12 @@ namespace boing
      * Encapsulates the Request, Response, and Session info so the user
      * doesn't have to deal with Beast internals directly.
      */
+    template<is_session Session>
     struct context
     {
         const http::request<http::string_body> &req;
         http::response<http::string_body> &res;
-        session *session_;
+        Session *session_;
         std::string query_params{};
         boost::urls::params_view params{};
 

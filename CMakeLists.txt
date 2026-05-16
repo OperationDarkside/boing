@@ -29,6 +29,7 @@ add_executable(boing main.cpp
                     session_manager.cpp
                     session.cpp
                     webserver.cpp
+                    simple_session.cpp
                     )
 target_link_options(boing PRIVATE -static-libstdc++ -static-libgcc)
 

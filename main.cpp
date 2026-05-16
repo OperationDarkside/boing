@@ -2,6 +2,7 @@
 
 #include "webserver.cpp"
 #include "annotations.cpp"
+#include "simple_session.cpp"
 // #include "route_scanner.cpp"
 
 struct User
@@ -19,15 +20,17 @@ namespace endpoints
 
     struct[[= controller("/")]] root
     {
-        [[= GET("")]] static void greeting(context &ctx)
+        [[= GET("")]] static void greeting(context<simple_session> &ctx)
         {
             ctx.html("<h2>Welcome to Boing</h2><p>Try our <a href=\"/stats\">/stats</a> page</p>");
         }
 
-        [[= GET("stats")]] void stats(context &ctx)
+        int visit_count = 0;
+
+        [[= GET("stats")]] void stats(context<simple_session> &ctx)
         {
             std::string msg = "<p>You have visited this site " +
-                              std::to_string(ctx.session_->visit_count++) + " times!</p>";
+                              std::to_string(visit_count++) + " times!</p>";
             ctx.html(msg);
         }
     };
@@ -36,19 +39,19 @@ namespace endpoints
     {
         int counter = 1;
 
-        [[= GET("/hello")]] static void hello(context &ctx)
+        [[= GET("/hello")]] static void hello(context<simple_session> &ctx)
         {
             ctx.text("Hello from within the end of points!");
         }
 
-        [[= GET("/count")]] void count(context &ctx)
+        [[= GET("/count")]] void count(context<simple_session> &ctx)
         {
             std::string msg = "<h3>Counter: " +
                               std::to_string(counter++) + "</h3>";
             ctx.html(msg);
         }
 
-        [[= GET("/olla")]] void olla(context &ctx)
+        [[= GET("/olla")]] void olla(context<simple_session> &ctx)
         {
             ctx.text("¡Hola desde el final de los puntos!");
         }
@@ -56,12 +59,12 @@ namespace endpoints
 
     struct[[= auto_controller()]] api
     {
-        static void rest(context &ctx)
+        static void rest(context<simple_session> &ctx)
         {
             ctx.text("Hello from the Rest API!");
         }
 
-        void bla(context &ctx)
+        void bla(context<simple_session> &ctx)
         {
             ctx.text("bla bla bla bla");
         }
@@ -126,6 +129,6 @@ namespace endpoints
 
 int main()
 {
-    boing::webserver<^^endpoints> server{};
+    boing::webserver<^^endpoints, simple_session> server{};
     server.start();
 }
