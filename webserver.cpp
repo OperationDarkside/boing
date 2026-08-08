@@ -52,163 +52,78 @@ namespace boing
         }
 
         constexpr static auto ctx = std::meta::access_context::current();
-        constexpr static auto ns_members = std::define_static_array(std::meta::members_of(inf, ctx));
+        // constexpr static auto ns_members = std::define_static_array(std::meta::members_of(inf, ctx));
 
-        consteval static auto get_endpoint_types()
-        {
-            std::vector<std::meta::info> tuple_members{};
-            template for (constexpr auto m : ns_members)
-            {
-                if constexpr (std::meta::is_type(m) && std::meta::is_complete_type(m) && std::meta::is_class_type(m) && std::meta::is_default_constructible_type(m))
-                {
-                    tuple_members.push_back(m);
-                }
-            }
-            return std::define_static_array(tuple_members);
-        }
-        constexpr static auto endpoint_types = get_endpoint_types();
-        constexpr static auto endpoint_types_indices = make_indices_array<endpoint_types.size()>();
+        constexpr static auto ctrl_types = std::array{std::meta::template_of(^^controller<0>), std::meta::template_of(^^rest_controller<0>), ^^auto_controller, ^^rest_auto_controller};
+        constexpr static auto ep_types = std::define_static_array(std::meta::members_of(inf, ctx) | std::views::filter(std::meta::is_type) | std::views::filter(std::meta::is_complete_type) | std::views::filter(std::meta::is_class_type) | std::views::filter(std::meta::is_default_constructible_type) | std::views::filter([](auto m)
+                                                                                                                                                                                                                                                                                                                                { return std::ranges::any_of(std::meta::annotations_of(m) | std::views::transform(std::meta::type_of) | std::views::transform(std::meta::remove_cvref), [](auto ann)
+                                                                                                                                                                                                                                                                                                                                                             {
+                                                                            auto a = std::meta::has_template_arguments(ann) ? std::meta::template_of(ann) : ann;
+                                                                            return std::ranges::contains(ctrl_types, a); }); }));
 
-        constexpr static auto tuple_instance_types = std::meta::substitute(
-            ^^std::tuple, endpoint_types);
-        typename[:tuple_instance_types:] m_instances{};
+        typename[:std::meta::substitute(^^std::tuple, ep_types):] m_instances{};
 
     public:
         webserver()
         {
-            template for (constexpr auto i : endpoint_types_indices)
+            template for (auto &instance : m_instances)
             {
                 // NAMESPACE MEMBERS
-                constexpr auto m = endpoint_types[i];
+                constexpr auto m = std::meta::remove_cvref(std::meta::type_of(^^instance));
 
                 constexpr auto m_annotations = std::define_static_array(std::meta::annotations_of(m));
-                if constexpr (!m_annotations.empty())
+
+                if constexpr (is_debug)
                 {
-                    if constexpr (is_debug)
+                    std::println("m: {}", std::meta::identifier_of(m));
+                }
+
+                constexpr static auto m_anno = m_annotations[0];
+                constexpr static auto m_anno_type = std::meta::remove_cvref(std::meta::type_of(m_anno));
+
+                constexpr static auto class_members = std::define_static_array(std::meta::members_of(m, ctx));
+                // constexpr static auto class_members_indices = make_indices_array<class_members.size()>();
+
+                if constexpr (std::meta::has_template_arguments(m_anno_type))
+                {
+                    constexpr static auto ctrl_type = ^^controller<0>;
+                    constexpr static auto rest_ctrl_type = ^^rest_controller<0>;
+                    if constexpr (std::meta::template_of(m_anno_type) == std::meta::template_of(ctrl_type))
                     {
-                        std::println("m: {}", std::meta::identifier_of(m));
-                    }
+                        // MEMBERS WITH CONTROLLER ANNOTATION
+                        using ctrl_anno_type = [:m_anno_type:];
+                        constexpr auto ctrl_obj = std::meta::extract<ctrl_anno_type>(m_anno);
+                        // CONTROLLER PATH
+                        const auto ctrl_path = ctrl_obj.path;
 
-                    constexpr static auto m_anno = m_annotations[0];
-                    constexpr static auto m_anno_type = std::meta::remove_cvref(std::meta::type_of(m_anno));
-
-                    constexpr static auto class_members = std::define_static_array(std::meta::members_of(m, ctx));
-                    constexpr static auto class_members_indices = make_indices_array<class_members.size()>();
-
-                    if constexpr (std::meta::has_template_arguments(m_anno_type))
-                    {
-                        constexpr static auto ctrl_type = ^^controller<0>;
-                        constexpr static auto rest_ctrl_type = ^^rest_controller<0>;
-                        if constexpr (std::meta::template_of(m_anno_type) == std::meta::template_of(ctrl_type))
+                        if constexpr (is_debug)
                         {
-                            // MEMBERS WITH CONTROLLER ANNOTATION
-                            using ctrl_anno_type = [:m_anno_type:];
-                            constexpr auto ctrl_obj = std::meta::extract<ctrl_anno_type>(m_anno);
-                            // CONTROLLER PATH
-                            const auto ctrl_path = ctrl_obj.path;
-
-                            if constexpr (is_debug)
-                            {
-                                std::println("ctrl_path: {}", ctrl_path);
-                            }
-
-                            template for (constexpr auto cm : class_members)
-                            {
-                                // CLASS MEMBERS
-                                if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
-                                {
-                                    constexpr auto cm_annotations = std::define_static_array(std::meta::annotations_of(cm));
-                                    if constexpr (cm_annotations.size() > 0)
-                                    {
-                                        constexpr static auto fn_anno = cm_annotations[0];
-                                        constexpr static auto fn_anno_type = std::meta::remove_cvref(std::meta::type_of(fn_anno));
-                                        constexpr static auto get_type = ^^GET<0>;
-                                        constexpr static auto post_type = ^^POST<0>;
-                                        constexpr static bool is_get = std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type);
-                                        constexpr static bool is_post = std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type);
-                                        if constexpr (is_get || is_post)
-                                        {
-                                            using anno_type = [:fn_anno_type:];
-                                            constexpr auto anno_obj = std::meta::extract<anno_type>(fn_anno);
-                                            const auto anno_path = anno_obj.path;
-
-                                            // RT
-                                            std::string full_path = ctrl_path;
-                                            full_path += anno_path;
-                                            all_endpoint_paths.emplace_back(full_path);
-
-                                            if constexpr (is_debug)
-                                            {
-                                                std::println("full_path: {}", full_path);
-                                            }
-
-                                            http::verb method;
-                                            if constexpr (is_get)
-                                            {
-                                                method = http::verb::get;
-                                            }
-                                            else
-                                            {
-                                                method = http::verb::post;
-                                            }
-
-                                            if constexpr (std::meta::is_static_member(cm))
-                                            {
-                                                app.add_route(method, full_path, [:cm:]);
-                                            }
-                                            else
-                                            {
-                                                auto &inst = std::get<i>(m_instances);
-                                                constexpr static auto mf = &[:cm:];
-                                                auto func = [&inst, mf](context<session> &ctx)
-                                                { (inst.*mf)(ctx); };
-                                                app.add_route(method, full_path, func);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            std::println("ctrl_path: {}", ctrl_path);
                         }
-                        else if constexpr (std::meta::template_of(m_anno_type) == std::meta::template_of(rest_ctrl_type))
+
+                        template for (constexpr auto cm : class_members)
                         {
-                            // MEMBERS WITH CONTROLLER ANNOTATION
-                            using rest_ctrl_anno_type = [:m_anno_type:];
-                            constexpr auto rest_ctrl_obj = std::meta::extract<rest_ctrl_anno_type>(m_anno);
-                            // REST CONTROLLER PATH
-                            const auto rest_ctrl_path = rest_ctrl_obj.path;
-
-                            if constexpr (is_debug)
+                            // CLASS MEMBERS
+                            if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
                             {
-                                std::println("rest_ctrl_path: {}", rest_ctrl_path);
-                            }
-
-                            template for (constexpr auto j : class_members_indices)
-                            {
-                                // CLASS MEMBERS
-                                constexpr auto cm = class_members[j];
-                                if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
+                                constexpr auto cm_annotations = std::define_static_array(std::meta::annotations_of(cm));
+                                if constexpr (cm_annotations.size() > 0)
                                 {
-                                    constexpr auto cm_annotations = std::define_static_array(std::meta::annotations_of(cm));
-                                    if constexpr (cm_annotations.size() > 0)
+                                    constexpr static auto fn_anno = cm_annotations[0];
+                                    constexpr static auto fn_anno_type = std::meta::remove_cvref(std::meta::type_of(fn_anno));
+                                    constexpr static auto get_type = ^^GET<0>;
+                                    constexpr static auto post_type = ^^POST<0>;
+                                    constexpr static bool is_get = std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type);
+                                    constexpr static bool is_post = std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type);
+                                    if constexpr (is_get || is_post)
                                     {
-                                        constexpr static auto fn_anno = cm_annotations[0];
-                                        constexpr static auto fn_anno_type = std::meta::remove_cvref(std::meta::type_of(fn_anno));
-                                        constexpr static auto get_type = ^^GET<0>;
-                                        constexpr static auto post_type = ^^POST<0>;
-                                        constexpr static bool is_get = std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type);
-                                        constexpr static bool is_post = std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type);
-                                        if constexpr (!(is_get || is_post))
-                                        {
-                                            continue;
-                                        }
-                                        // GET annotation
-                                        using get_anno_type = [:fn_anno_type:];
-                                        constexpr auto get_obj = std::meta::extract<get_anno_type>(fn_anno);
-                                        const auto get_path = get_obj.path;
+                                        using anno_type = [:fn_anno_type:];
+                                        constexpr auto anno_obj = std::meta::extract<anno_type>(fn_anno);
+                                        const auto anno_path = anno_obj.path;
 
                                         // RT
-                                        std::string full_path = rest_ctrl_path;
-                                        full_path += get_path;
+                                        std::string full_path = ctrl_path;
+                                        full_path += anno_path;
                                         all_endpoint_paths.emplace_back(full_path);
 
                                         if constexpr (is_debug)
@@ -216,170 +131,73 @@ namespace boing
                                             std::println("full_path: {}", full_path);
                                         }
 
-                                        // DECONSTRUCT MEMBER FUNCTION
-                                        constexpr auto ret_type = std::meta::return_type_of(cm);
-                                        constexpr auto ret_type_name = std::meta::display_string_of(ret_type);
-                                        if constexpr (is_debug)
-                                        {
-                                            std::println("ret_type_name: {}", ret_type_name);
-                                        }
-                                        constexpr static auto fn_parameters = std::define_static_array(parameters_of(cm));
-                                        constexpr static auto params_indices = make_indices_array<fn_parameters.size()>();
-
-                                        constexpr auto tuple_refl = std::meta::substitute(
-                                            ^^std::tuple, fn_parameters | std::views::transform(std::meta::type_of));
-
-                                        http::verb v;
+                                        http::verb method;
                                         if constexpr (is_get)
                                         {
-                                            v = http::verb::get;
+                                            method = http::verb::get;
                                         }
                                         else
                                         {
-                                            v = http::verb::post;
+                                            method = http::verb::post;
                                         }
 
-                                        auto &inst = std::get<i>(m_instances);
-                                        constexpr static auto mf = &[:cm:];
-
-                                        app.add_route(v, full_path, [this, &inst, mf](context<session> &ctx)
-                                                      {
-                                            typename[:tuple_refl:] args{};
-                                            
-                                            template for (constexpr auto ki : params_indices)
-                                            {
-                                                
-                                                constexpr auto fp = fn_parameters[ki];
-                                                constexpr auto fp_name = std::meta::identifier_of(fp);
-                                                constexpr auto fp_type = std::meta::type_of(fp);
-                                                constexpr auto fp_type_cleaned = std::meta::remove_cvref(fp_type);
-
-                                                //constexpr static auto fp_type_name = std::define_static_string(std::meta::display_string_of(fp_type));
-                                                //constexpr auto fp_type_cleaned_name = std::define_static_string(std::meta::display_string_of(fp_type_cleaned));
-                                                //std::println("fp_type_name: {} - fp_type_cleaned_name: {}", fp_type_name, fp_type_cleaned_name);
-
-                                                constexpr static bool has_templ_args = has_template_arguments(fp_type_cleaned);
-                                                constexpr static bool is_post_body = has_templ_args && template_of(fp_type_cleaned) == template_of(^^boing::POST_BODY<int>);
-                                                //std::println("is_post_body: {}", is_post_body);
-                                                
-                                                if constexpr (is_post_body) {
-                                                    // ChatGPT 5.2                                                            
-                                                    constexpr static auto body_type = template_arguments_of(fp_type_cleaned)[0];
-                                                    typename [:body_type:] obj{};
-                                                    json_magic::deserialize_value(obj, ctx.req.body());
-
-                                                    typename [:fp_type_cleaned:] wrapped{ std::move(obj) };
-                                                    std::get<ki>(args) = std::move(wrapped);
-                                                } else {
-                                                    
-                                                    if (ctx.params.contains(fp_name))
-                                                    {
-                                                        auto it = *ctx.params.find(fp_name);
-                                                        auto val = it.value;
-                                                        
-                                                        constexpr static bool is_optional = has_templ_args && template_of(fp_type_cleaned) == template_of(^^std::optional<int>);
-                                                        //std::println("is_optional: {}", is_optional);
-                                                        
-                                                        if constexpr(is_optional) {
-                                                            constexpr static auto opt_type = template_arguments_of(fp_type_cleaned)[0];
-                                                            typename [:fp_type_cleaned:] opt_val = deserialize_get_param<opt_type>(val);
-                                                            std::get<ki>(args) = opt_val;
-                                                        } else {
-                                                            std::get<ki>(args) = deserialize_get_param<fp_type_cleaned>(val);
-                                                        }
-                                                        
-                                                    } else {
-                                                        std::get<ki>(args) = {};
-                                                    }
-                                                
-                                                }
-                                                    
-                                            }
-                                            
-                                            auto [... params] = args;
-                                            typename [:ret_type:] result;
-
-                                            
-                                            if constexpr (std::meta::is_static_member(cm)) {
-                                                result = [:cm:](params...);
-                                            } else {
-                                                result = (inst.*mf)(params...);
-                                            }
-
-                                            std::string str_json = json_magic::serialize_value(result);
-
-                                            ctx.json(str_json); });
+                                        if constexpr (std::meta::is_static_member(cm))
+                                        {
+                                            app.add_route(method, full_path, [:cm:]);
+                                        }
+                                        else
+                                        {
+                                            // auto &inst = std::get<i>(m_instances);
+                                            constexpr static auto mf = &[:cm:];
+                                            auto func = [&instance, mf](context<session> &ctx)
+                                            { (instance.*mf)(ctx); };
+                                            app.add_route(method, full_path, func);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    else
+                    else if constexpr (std::meta::template_of(m_anno_type) == std::meta::template_of(rest_ctrl_type))
                     {
-                        constexpr auto auto_ctrl_type = ^^auto_controller;
-                        constexpr auto rest_auto_ctrl_type = ^^rest_auto_controller;
+                        // MEMBERS WITH CONTROLLER ANNOTATION
+                        using rest_ctrl_anno_type = [:m_anno_type:];
+                        constexpr auto rest_ctrl_obj = std::meta::extract<rest_ctrl_anno_type>(m_anno);
+                        // REST CONTROLLER PATH
+                        const auto rest_ctrl_path = rest_ctrl_obj.path;
 
-                        if constexpr (m_anno_type == auto_ctrl_type)
+                        if constexpr (is_debug)
                         {
-                            // IS AUTO_CONTROLLER
-                            constexpr auto class_name = std::meta::identifier_of(m);
-
-                            template for (constexpr auto cm : class_members)
-                            {
-                                // CLASS MEMBERS
-                                if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
-                                {
-                                    constexpr auto class_member_name = std::meta::identifier_of(cm);
-                                    std::string full_path = "/";
-                                    full_path += class_name;
-                                    full_path += "/";
-                                    full_path += class_member_name;
-                                    all_endpoint_paths.emplace_back(full_path);
-
-                                    if constexpr (is_debug)
-                                    {
-                                        std::println("full_path: {}", full_path);
-                                    }
-
-                                    if constexpr (std::meta::is_static_member(cm))
-                                    {
-                                        app.add_route(http::verb::get, full_path, [:cm:]); // Should default to POST?
-                                    }
-                                    else
-                                    {
-                                        auto &inst = std::get<i>(m_instances);
-                                        constexpr static auto mf = &[:cm:];
-                                        auto func = [&inst, mf](context<session> &ctx)
-                                        { (inst.*mf)(ctx); };
-                                        app.add_route(http::verb::get, full_path, func);
-                                    }
-                                }
-                            }
+                            std::println("rest_ctrl_path: {}", rest_ctrl_path);
                         }
-                        else if constexpr (m_anno_type == rest_auto_ctrl_type)
+
+                        template for (constexpr static auto cm : class_members)
                         {
-                            // MEMBERS WITH CONTROLLER ANNOTATION
-
-                            // REST CONTROLLER PATH
-                            constexpr auto class_name = std::meta::identifier_of(m);
-
-                            if constexpr (is_debug)
+                            // CLASS MEMBERS
+                            // constexpr auto cm = class_members[j];
+                            if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
                             {
-                                std::println("rest_auto_ctrl class_name: {}", class_name);
-                            }
-
-                            template for (constexpr auto j : class_members_indices)
-                            {
-                                // CLASS MEMBERS
-                                constexpr auto cm = class_members[j];
-                                if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
+                                constexpr auto cm_annotations = std::define_static_array(std::meta::annotations_of(cm));
+                                if constexpr (cm_annotations.size() > 0)
                                 {
+                                    constexpr static auto fn_anno = cm_annotations[0];
+                                    constexpr static auto fn_anno_type = std::meta::remove_cvref(std::meta::type_of(fn_anno));
+                                    constexpr static auto get_type = ^^GET<0>;
+                                    constexpr static auto post_type = ^^POST<0>;
+                                    constexpr static bool is_get = std::meta::template_of(fn_anno_type) == std::meta::template_of(get_type);
+                                    constexpr static bool is_post = std::meta::template_of(fn_anno_type) == std::meta::template_of(post_type);
+                                    if constexpr (!(is_get || is_post))
+                                    {
+                                        continue;
+                                    }
+                                    // GET annotation
+                                    using get_anno_type = [:fn_anno_type:];
+                                    constexpr auto get_obj = std::meta::extract<get_anno_type>(fn_anno);
+                                    const auto get_path = get_obj.path;
+
                                     // RT
-                                    constexpr auto class_member_name = std::meta::identifier_of(cm);
-                                    std::string full_path = "/";
-                                    full_path += class_name;
-                                    full_path += "/";
-                                    full_path += class_member_name;
+                                    std::string full_path = rest_ctrl_path;
+                                    full_path += get_path;
                                     all_endpoint_paths.emplace_back(full_path);
 
                                     if constexpr (is_debug)
@@ -389,9 +207,9 @@ namespace boing
 
                                     // DECONSTRUCT MEMBER FUNCTION
                                     constexpr auto ret_type = std::meta::return_type_of(cm);
+                                    constexpr auto ret_type_name = std::meta::display_string_of(ret_type);
                                     if constexpr (is_debug)
                                     {
-                                        constexpr auto ret_type_name = std::meta::display_string_of(ret_type);
                                         std::println("ret_type_name: {}", ret_type_name);
                                     }
                                     constexpr static auto fn_parameters = std::define_static_array(parameters_of(cm));
@@ -400,12 +218,20 @@ namespace boing
                                     constexpr auto tuple_refl = std::meta::substitute(
                                         ^^std::tuple, fn_parameters | std::views::transform(std::meta::type_of));
 
-                                    http::verb v= http::verb::post;
+                                    http::verb v;
+                                    if constexpr (is_get)
+                                    {
+                                        v = http::verb::get;
+                                    }
+                                    else
+                                    {
+                                        v = http::verb::post;
+                                    }
 
-                                    auto &inst = std::get<i>(m_instances);
+                                    // auto &inst = std::get<i>(m_instances);
                                     constexpr static auto mf = &[:cm:];
 
-                                    app.add_route(v, full_path, [this, &inst, mf](context<session> &ctx)
+                                    app.add_route(v, full_path, [this, &instance, mf](context<session> &ctx)
                                                   {
                                             typename[:tuple_refl:] args{};
                                             
@@ -466,13 +292,175 @@ namespace boing
                                             if constexpr (std::meta::is_static_member(cm)) {
                                                 result = [:cm:](params...);
                                             } else {
-                                                result = (inst.*mf)(params...);
+                                                result = (instance.*mf)(params...);
                                             }
 
                                             std::string str_json = json_magic::serialize_value(result);
 
                                             ctx.json(str_json); });
                                 }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    constexpr auto auto_ctrl_type = ^^auto_controller;
+                    constexpr auto rest_auto_ctrl_type = ^^rest_auto_controller;
+
+                    if constexpr (m_anno_type == auto_ctrl_type)
+                    {
+                        // IS AUTO_CONTROLLER
+                        constexpr auto class_name = std::meta::identifier_of(m);
+
+                        template for (constexpr auto cm : class_members)
+                        {
+                            // CLASS MEMBERS
+                            if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
+                            {
+                                constexpr auto class_member_name = std::meta::identifier_of(cm);
+                                std::string full_path = "/";
+                                full_path += class_name;
+                                full_path += "/";
+                                full_path += class_member_name;
+                                all_endpoint_paths.emplace_back(full_path);
+
+                                if constexpr (is_debug)
+                                {
+                                    std::println("full_path: {}", full_path);
+                                }
+
+                                if constexpr (std::meta::is_static_member(cm))
+                                {
+                                    app.add_route(http::verb::get, full_path, [:cm:]); // Should default to POST?
+                                }
+                                else
+                                {
+                                    // auto &inst = std::get<i>(m_instances);
+                                    constexpr static auto mf = &[:cm:];
+                                    auto func = [&instance, mf](context<session> &ctx)
+                                    { (instance.*mf)(ctx); };
+                                    app.add_route(http::verb::get, full_path, func);
+                                }
+                            }
+                        }
+                    }
+                    else if constexpr (m_anno_type == rest_auto_ctrl_type)
+                    {
+                        // MEMBERS WITH CONTROLLER ANNOTATION
+
+                        // REST CONTROLLER PATH
+                        constexpr auto class_name = std::meta::identifier_of(m);
+
+                        if constexpr (is_debug)
+                        {
+                            std::println("rest_auto_ctrl class_name: {}", class_name);
+                        }
+
+                        template for (constexpr static auto cm : class_members)
+                        {
+                            // CLASS MEMBERS
+                            // constexpr auto cm = class_members[j];
+                            if constexpr (std::meta::is_function(cm) && std::meta::is_public(cm) && std::meta::is_user_provided(cm) && !std::meta::is_pure_virtual(cm))
+                            {
+                                // RT
+                                constexpr auto class_member_name = std::meta::identifier_of(cm);
+                                std::string full_path = "/";
+                                full_path += class_name;
+                                full_path += "/";
+                                full_path += class_member_name;
+                                all_endpoint_paths.emplace_back(full_path);
+
+                                if constexpr (is_debug)
+                                {
+                                    std::println("full_path: {}", full_path);
+                                }
+
+                                // DECONSTRUCT MEMBER FUNCTION
+                                constexpr auto ret_type = std::meta::return_type_of(cm);
+                                if constexpr (is_debug)
+                                {
+                                    constexpr auto ret_type_name = std::meta::display_string_of(ret_type);
+                                    std::println("ret_type_name: {}", ret_type_name);
+                                }
+                                constexpr static auto fn_parameters = std::define_static_array(parameters_of(cm));
+                                constexpr static auto params_indices = make_indices_array<fn_parameters.size()>();
+
+                                constexpr auto tuple_refl = std::meta::substitute(
+                                    ^^std::tuple, fn_parameters | std::views::transform(std::meta::type_of));
+
+                                http::verb v = http::verb::post;
+
+                                // auto &inst = std::get<i>(m_instances);
+                                constexpr static auto mf = &[:cm:];
+
+                                app.add_route(v, full_path, [this, &instance, mf](context<session> &ctx)
+                                              {
+                                            typename[:tuple_refl:] args{};
+                                            
+                                            template for (constexpr auto ki : params_indices)
+                                            {
+                                                
+                                                constexpr auto fp = fn_parameters[ki];
+                                                constexpr auto fp_name = std::meta::identifier_of(fp);
+                                                constexpr auto fp_type = std::meta::type_of(fp);
+                                                constexpr auto fp_type_cleaned = std::meta::remove_cvref(fp_type);
+
+                                                //constexpr static auto fp_type_name = std::define_static_string(std::meta::display_string_of(fp_type));
+                                                //constexpr auto fp_type_cleaned_name = std::define_static_string(std::meta::display_string_of(fp_type_cleaned));
+                                                //std::println("fp_type_name: {} - fp_type_cleaned_name: {}", fp_type_name, fp_type_cleaned_name);
+
+                                                constexpr static bool has_templ_args = has_template_arguments(fp_type_cleaned);
+                                                constexpr static bool is_post_body = has_templ_args && template_of(fp_type_cleaned) == template_of(^^boing::POST_BODY<int>);
+                                                //std::println("is_post_body: {}", is_post_body);
+                                                
+                                                if constexpr (is_post_body) {
+                                                    // ChatGPT 5.2                                                            
+                                                    constexpr static auto body_type = template_arguments_of(fp_type_cleaned)[0];
+                                                    typename [:body_type:] obj{};
+                                                    json_magic::deserialize_value(obj, ctx.req.body());
+
+                                                    typename [:fp_type_cleaned:] wrapped{ std::move(obj) };
+                                                    std::get<ki>(args) = std::move(wrapped);
+                                                } else {
+                                                    
+                                                    if (ctx.params.contains(fp_name))
+                                                    {
+                                                        auto it = *ctx.params.find(fp_name);
+                                                        auto val = it.value;
+                                                        
+                                                        constexpr static bool is_optional = has_templ_args && template_of(fp_type_cleaned) == template_of(^^std::optional<int>);
+                                                        //std::println("is_optional: {}", is_optional);
+                                                        
+                                                        if constexpr(is_optional) {
+                                                            constexpr static auto opt_type = template_arguments_of(fp_type_cleaned)[0];
+                                                            typename [:fp_type_cleaned:] opt_val = deserialize_get_param<opt_type>(val);
+                                                            std::get<ki>(args) = opt_val;
+                                                        } else {
+                                                            std::get<ki>(args) = deserialize_get_param<fp_type_cleaned>(val);
+                                                        }
+                                                        
+                                                    } else {
+                                                        std::get<ki>(args) = {};
+                                                    }
+                                                
+                                                }
+                                                    
+                                            }
+                                            
+                                            auto [... params] = args;
+                                            typename [:ret_type:] result;
+
+                                            
+                                            if constexpr (std::meta::is_static_member(cm)) {
+                                                result = [:cm:](params...);
+                                            } else {
+                                                result = (instance.*mf)(params...);
+                                            }
+
+                                            std::string str_json = json_magic::serialize_value(result);
+
+                                            ctx.json(str_json); });
                             }
                         }
                     }
